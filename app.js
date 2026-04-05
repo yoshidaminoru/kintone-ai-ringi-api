@@ -8,7 +8,7 @@ app.get('/', async (req, res) => {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': 'Bearer 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'
+        'Authorization': `Bearer ${process.env.OPENAI_API_KEY}`
       },
       body: JSON.stringify({
         model: 'gpt-4o-mini',
