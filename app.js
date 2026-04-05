@@ -8,7 +8,7 @@ app.get('/', async (req, res) => {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': 'Bearer Bearer sk-proj-xnwUuXbA7lT8kHsM_WmTd3RoRN3dE2Z5bIeXsBbuK5g4wJsbl7qGf7vPnrzZ8_ROY15y0wzbWET3BlbkFJiI5wF-IB_2utqS4XviFE62vrnV9npR-Arcp06ZjlNlgfAqZaJCu35rbziCMY3R0qB'
+        'Authorization': 'Bearer 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'
       },
       body: JSON.stringify({
         model: 'gpt-4o-mini',
