@@ -71,8 +71,20 @@ app.post('/generate', async (req, res) => {
 
     const prompt = `
 以下の情報をもとに、社内稟議書の下書きを作成してください。
-「件名」「要旨」「説明」の3項目で、簡潔かつ論理的にまとめてください。
 
+【出力形式（必ず守る）】
+■件名：
+■要旨：
+■説明：
+
+【ルール】
+・文章は簡潔に（無駄な表現は禁止）
+・決裁者向けに論理的に記述する
+・説明は「現状→問題→対策→効果」の順で構成する
+・主観的な表現（〜と思われる）は使わない
+・1文は短く
+
+【入力情報】
 件名メモ: ${subject || ''}
 現状課題: ${issue || ''}
 導入理由: ${reason || ''}
@@ -84,7 +96,7 @@ app.post('/generate', async (req, res) => {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${process.env.OPENAI_API_KEY}`
+        'Authorization': \`Bearer \${process.env.OPENAI_API_KEY}\`
       },
       body: JSON.stringify({
         model: 'gpt-4o-mini',
@@ -109,5 +121,5 @@ app.post('/generate', async (req, res) => {
 
 const PORT = process.env.PORT || 10000;
 app.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
+  console.log(\`Server running on port \${PORT}\`);
 });
