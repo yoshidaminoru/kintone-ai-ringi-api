@@ -8,7 +8,7 @@ app.get('/', (req, res) => {
     <html>
       <head>
         <meta charset="utf-8" />
-        <title>稟議書AI（対話型）</title>
+        <title>稟議書AI（種類選択つき）</title>
         <style>
           body {
             font-family: sans-serif;
@@ -16,7 +16,7 @@ app.get('/', (req, res) => {
             background: #f5f7fb;
           }
           .wrap {
-            max-width: 1200px;
+            max-width: 1280px;
             margin: 0 auto;
             padding: 24px;
           }
@@ -43,7 +43,7 @@ app.get('/', (req, res) => {
             padding: 16px;
           }
           .chat {
-            height: 520px;
+            height: 560px;
             overflow-y: auto;
             border: 1px solid #ddd;
             border-radius: 8px;
@@ -66,7 +66,7 @@ app.get('/', (req, res) => {
           }
           textarea {
             width: 100%;
-            min-height: 80px;
+            min-height: 90px;
             padding: 10px;
             box-sizing: border-box;
             border-radius: 8px;
@@ -128,11 +128,20 @@ app.get('/', (req, res) => {
             background: #f6f6f6;
             border-radius: 8px;
             white-space: pre-wrap;
-            min-height: 120px;
+            min-height: 140px;
           }
           .small {
             font-size: 12px;
             color: #666;
+          }
+          .type-buttons {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+            margin-top: 10px;
+          }
+          .type-buttons button {
+            background: #2d7d46;
           }
           @media (max-width: 900px) {
             .layout {
@@ -143,10 +152,10 @@ app.get('/', (req, res) => {
       </head>
       <body>
         <div class="wrap">
-          <h1>稟議書AI（対話型）</h1>
+          <h1>稟議書AI（種類選択つき）</h1>
           <div class="notice">
             個人情報・機密情報は必要最小限で入力してください。<br>
-            文章が苦手でも大丈夫です。短く答えてもAIが整理します。
+            文章が苦手でも大丈夫です。短く答えていただければAIが整理します。
           </div>
 
           <div class="layout">
@@ -162,11 +171,25 @@ app.get('/', (req, res) => {
                 <button class="secondary" onclick="generateRingi()">稟議書を作成する</button>
               </div>
 
+              <div class="type-buttons" id="typeButtons" style="display:none;">
+                <button onclick="selectType('equipment')">購入・設備導入</button>
+                <button onclick="selectType('repair')">修繕・更新</button>
+                <button onclick="selectType('improvement')">業務改善</button>
+                <button onclick="selectType('system')">システム導入</button>
+                <button onclick="selectType('organization')">人員・体制</button>
+                <button onclick="selectType('other')">その他</button>
+              </div>
+
               <div class="result-box" id="resultBox">ここに生成結果が表示されます</div>
             </div>
 
             <div class="card">
               <h2 class="side-title">整理された情報</h2>
+
+              <div class="field-box">
+                <div class="field-label">稟議書の種類</div>
+                <div id="ringiType_view" class="field-value"></div>
+              </div>
 
               <div class="field-box">
                 <div class="field-label">件名メモ</div>
@@ -212,10 +235,68 @@ app.get('/', (req, res) => {
         </div>
 
         <script>
+          const ringiTypes = {
+            equipment: {
+              label: '購入・設備導入',
+              issueExample: '満杯状態を検知できず、清掃作業や設備停止の手間が発生している',
+              impactExample: '清掃作業が増える、設備停止リスクがある',
+              measureExample: '追加センサーを導入したい',
+              reasonExample: '既設設備だけでは安定運用が難しく、追加導入が必要である',
+              effectExample: '作業負荷軽減、停止リスク低減、安全性向上',
+              noteExample: '既存設備への後付けを想定'
+            },
+            repair: {
+              label: '修繕・更新',
+              issueExample: '老朽化により故障が増え、安定稼働に支障が出ている',
+              impactExample: '停止時間が増える、保全対応の負荷が高い',
+              measureExample: '老朽設備を修繕または更新したい',
+              reasonExample: '継続使用では安定稼働の確保が難しいため',
+              effectExample: '故障減少、安定稼働、保全負荷軽減',
+              noteExample: '現行設備との互換性を考慮'
+            },
+            improvement: {
+              label: '業務改善',
+              issueExample: '作業手順が非効率で、手間や待ち時間が発生している',
+              impactExample: '処理時間が長い、担当者負担が大きい',
+              measureExample: '作業フローや運用方法を見直したい',
+              reasonExample: '現行のやり方では効率化に限界があるため',
+              effectExample: '作業時間短縮、負荷軽減、品質安定',
+              noteExample: '現場運用への影響は限定的'
+            },
+            system: {
+              label: 'システム導入',
+              issueExample: '手作業での転記が多く、入力ミスや確認漏れが発生している',
+              impactExample: '作業時間がかかる、属人化している',
+              measureExample: '業務管理システムや自動化ツールを導入したい',
+              reasonExample: '業務効率化と属人化防止のため、システム化が必要である',
+              effectExample: '処理時間短縮、ミス削減、進捗の見える化',
+              noteExample: '既存システムとの連携も考慮'
+            },
+            organization: {
+              label: '人員・体制',
+              issueExample: '現行体制では業務量に対応しきれず、負荷が偏っている',
+              impactExample: '対応遅れ、属人化、引継ぎ不足が発生している',
+              measureExample: '人員配置や担当体制を見直したい',
+              reasonExample: '安定運営のためには現行体制の見直しが必要である',
+              effectExample: '業務平準化、対応力向上、属人化解消',
+              noteExample: '関係部門との調整を前提とする'
+            },
+            other: {
+              label: 'その他',
+              issueExample: '現在の運用では支障があり、改善が必要となっている',
+              impactExample: '手間やリスク、非効率が発生している',
+              measureExample: '必要な対策を実施したい',
+              reasonExample: '現状維持では課題解決が難しいため',
+              effectExample: '効率化、安定化、リスク低減',
+              noteExample: '必要に応じて補足'
+            }
+          };
+
           const state = {
-            currentStep: 'subject',
+            currentStep: 'ringiType',
             history: [],
             data: {
+              ringiType: '',
               subject: '',
               issue: '',
               impact: '',
@@ -227,34 +308,14 @@ app.get('/', (req, res) => {
           };
 
           const steps = [
-            {
-              key: 'subject',
-              question: 'まず、件名の元になる内容を教えてください。\\n例：ホッパー満杯検知用センサー追加導入'
-            },
-            {
-              key: 'issue',
-              question: '今どんな問題がありますか。短くで大丈夫です。\\n例：満杯なのに検知できないことがある'
-            },
-            {
-              key: 'impact',
-              question: 'その結果、どんな手間やリスクが出ていますか。\\n例：清掃作業が増える、設備停止リスクがある'
-            },
-            {
-              key: 'measure',
-              question: '今回、何を導入・改善したいですか。\\n例：追加センサーを取り付けたい'
-            },
-            {
-              key: 'reason',
-              question: 'なぜそれが必要ですか。\\n例：既設センサー1つでは故障時に検知できないため'
-            },
-            {
-              key: 'effect',
-              question: '導入すると、どんな効果が期待できますか。\\n例：見逃し防止、清掃作業削減、停止リスク低減'
-            },
-            {
-              key: 'note',
-              question: '補足があれば教えてください。なければ「なし」で大丈夫です。\\n例：既存設備への後付けを想定'
-            }
+            { key: 'ringiType' },
+            { key: 'subject' },
+            { key: 'issue' },
+            { key: 'impact' },
+            { key: 'measure' },
+            { key: 'reason' },
+            { key: 'effect' },
+            { key: 'note' }
           ];
 
           function addMessage(role, text) {
@@ -267,6 +328,8 @@ app.get('/', (req, res) => {
           }
 
           function updateViews() {
+            document.getElementById('ringiType_view').textContent =
+              state.data.ringiType ? ringiTypes[state.data.ringiType].label : '';
             document.getElementById('subject_view').textContent = state.data.subject || '';
             document.getElementById('issue_view').textContent = state.data.issue || '';
             document.getElementById('impact_view').textContent = state.data.impact || '';
@@ -280,13 +343,70 @@ app.get('/', (req, res) => {
             return steps.findIndex(s => s.key === state.currentStep);
           }
 
-          function askCurrentQuestion() {
-            const step = steps.find(s => s.key === state.currentStep);
-            if (step) {
-              addMessage('ai', step.question);
-            } else {
-              addMessage('ai', '必要事項が揃いました。右下の「稟議書を作成する」を押してください。');
+          function getQuestion(stepKey) {
+            const typeData = ringiTypes[state.data.ringiType] || ringiTypes.other;
+
+            if (stepKey === 'ringiType') {
+              return 'まず、どの種類の稟議書ですか。下のボタンから選んでください。';
             }
+
+            if (stepKey === 'subject') {
+              return '件名の元になる内容を教えてください。\\n例：ホッパー満杯検知用センサー追加導入';
+            }
+
+            if (stepKey === 'issue') {
+              return '今どんな問題がありますか。短くで大丈夫です。\\n例：' + typeData.issueExample;
+            }
+
+            if (stepKey === 'impact') {
+              return 'その結果、どんな手間やリスクが出ていますか。\\n例：' + typeData.impactExample;
+            }
+
+            if (stepKey === 'measure') {
+              return '今回、何を導入・改善したいですか。\\n例：' + typeData.measureExample;
+            }
+
+            if (stepKey === 'reason') {
+              return 'なぜそれが必要ですか。\\n例：' + typeData.reasonExample;
+            }
+
+            if (stepKey === 'effect') {
+              return '導入すると、どんな効果が期待できますか。\\n例：' + typeData.effectExample;
+            }
+
+            if (stepKey === 'note') {
+              return '補足があれば教えてください。なければ「なし」で大丈夫です。\\n例：' + typeData.noteExample;
+            }
+
+            return '';
+          }
+
+          function askCurrentQuestion() {
+            const question = getQuestion(state.currentStep);
+            if (question) {
+              addMessage('ai', question);
+            }
+
+            if (state.currentStep === 'ringiType') {
+              document.getElementById('typeButtons').style.display = 'flex';
+              document.getElementById('input').style.display = 'none';
+              document.getElementById('sendBtn').style.display = 'none';
+            } else {
+              document.getElementById('typeButtons').style.display = 'none';
+              document.getElementById('input').style.display = 'block';
+              document.getElementById('sendBtn').style.display = 'inline-block';
+            }
+          }
+
+          function selectType(typeKey) {
+            state.history.push(JSON.parse(JSON.stringify(state.data)));
+            state.data.ringiType = typeKey;
+            updateViews();
+
+            addMessage('user', ringiTypes[typeKey].label);
+
+            state.currentStep = 'subject';
+            askCurrentQuestion();
           }
 
           async function sendMessage() {
@@ -313,7 +433,7 @@ app.get('/', (req, res) => {
               askCurrentQuestion();
             } else {
               state.currentStep = 'done';
-              addMessage('ai', 'ありがとうございます。内容が揃いました。\\n必要なら右側の整理内容を確認して、問題なければ「稟議書を作成する」を押してください。');
+              addMessage('ai', 'ありがとうございます。内容が揃いました。必要なら右側の整理内容を確認して、問題なければ「稟議書を作成する」を押してください。');
             }
           }
 
@@ -325,16 +445,15 @@ app.get('/', (req, res) => {
 
             state.data = state.history.pop();
 
-            const filledCount = Object.values(state.data).filter(v => v && v.trim() !== '').length;
-
-            if (!state.data.subject) state.currentStep = 'subject';
+            if (!state.data.ringiType) state.currentStep = 'ringiType';
+            else if (!state.data.subject) state.currentStep = 'subject';
             else if (!state.data.issue) state.currentStep = 'issue';
             else if (!state.data.impact) state.currentStep = 'impact';
             else if (!state.data.measure) state.currentStep = 'measure';
             else if (!state.data.reason) state.currentStep = 'reason';
             else if (!state.data.effect) state.currentStep = 'effect';
             else if (!state.data.note) state.currentStep = 'note';
-            else state.currentStep = steps[Math.min(filledCount, steps.length - 1)].key;
+            else state.currentStep = 'done';
 
             updateViews();
             addMessage('ai', '1つ前の状態に戻しました。必要に応じて入力し直してください。');
@@ -342,9 +461,10 @@ app.get('/', (req, res) => {
           }
 
           function resetAll() {
-            state.currentStep = 'subject';
+            state.currentStep = 'ringiType';
             state.history = [];
             state.data = {
+              ringiType: '',
               subject: '',
               issue: '',
               impact: '',
@@ -392,10 +512,22 @@ app.get('/', (req, res) => {
 
 app.post('/generate', async (req, res) => {
   try {
-    const { subject, issue, impact, measure, reason, effect, note } = req.body;
+    const { ringiType, subject, issue, impact, measure, reason, effect, note } = req.body;
+
+    const typeLabel = {
+      equipment: '購入・設備導入',
+      repair: '修繕・更新',
+      improvement: '業務改善',
+      system: 'システム導入',
+      organization: '人員・体制',
+      other: 'その他'
+    }[ringiType] || 'その他';
 
     const prompt = `
 以下のヒアリング内容をもとに、社内稟議書の下書きを作成してください。
+
+【稟議書の種類】
+${typeLabel}
 
 【出力形式（必ず守る）】
 【件名】
@@ -409,6 +541,7 @@ app.post('/generate', async (req, res) => {
 ・冗長な表現は避ける
 ・そのまま社内文書に貼れる文体にする
 ・文章は短めにまとめる
+・稟議書の種類に合った自然な表現にする
 
 【入力情報】
 件名メモ: ${subject || ''}
