@@ -239,6 +239,21 @@ app.get('/', (req, res) => {
               </div>
 
               <div class="field-box">
+                <div class="field-label">概算費用</div>
+                <div id="cost_view" class="field-value"></div>
+              </div>
+
+              <div class="field-box">
+                <div class="field-label">支払形態</div>
+                <div id="payment_view" class="field-value"></div>
+              </div>
+
+              <div class="field-box">
+                <div class="field-label">導入時期・実施時期</div>
+                <div id="schedule_view" class="field-value"></div>
+              </div>
+
+              <div class="field-box">
                 <div class="field-label">補足</div>
                 <div id="note_view" class="field-value"></div>
               </div>
@@ -262,6 +277,9 @@ app.get('/', (req, res) => {
               measureExample: '追加センサーの導入、設備更新、修繕工事を実施したい',
               reasonExample: '現行設備のままでは安定稼働の維持が難しく、早期対応が必要である',
               effectExample: '見逃し防止、作業負荷軽減、停止リスク低減、安全性向上',
+              costExample: '80万円、250万円、修繕費30万円程度',
+              paymentExample: '買い切り、一括支払い',
+              scheduleExample: '2026年6月導入予定、次回定修時に実施予定',
               noteExample: '既存設備への後付けを想定し、現場運用への影響を最小限に抑える'
             },
 
@@ -274,6 +292,9 @@ app.get('/', (req, res) => {
               measureExample: 'AIツールや業務支援システムを導入し、作業を効率化したい',
               reasonExample: '業務効率化と品質平準化を進め、担当者負担を軽減する必要がある',
               effectExample: '作成時間短縮、修正回数削減、品質の均一化、業務効率向上',
+              costExample: '初期費用30万円、月額5万円、月額25.8万円',
+              paymentExample: '月額、年額、初期費用＋月額',
+              scheduleExample: '2026年7月利用開始予定、早期導入希望',
               noteExample: '既存のkintoneや社内業務フローに合わせ、段階的に運用開始する'
             },
 
@@ -286,6 +307,9 @@ app.get('/', (req, res) => {
               measureExample: '外部サービスの契約締結、更新、見直し、停止を行いたい',
               reasonExample: '業務継続性、品質向上、コスト適正化の観点から契約内容の見直しが必要である',
               effectExample: '運用品質向上、コスト適正化、必要支援の確保、業務安定化',
+              costExample: '年額120万円、月額8万円、契約総額300万円',
+              paymentExample: '月額、年額、契約一括',
+              scheduleExample: '次回契約更新月から適用、2026年8月開始予定',
               noteExample: '契約条件、見積金額、期間、他社比較結果があれば記載する'
             },
 
@@ -298,6 +322,9 @@ app.get('/', (req, res) => {
               measureExample: '採用、登用、異動、退職受理など人事対応を実施したい',
               reasonExample: '今後の業務継続および組織運営の安定化のため、人員面での対応が必要である',
               effectExample: '体制強化、業務平準化、対応力向上、継続性確保',
+              costExample: '年収400万円程度、採用費50万円程度',
+              paymentExample: '月額給与、人件費、採用費',
+              scheduleExample: '2026年10月入社予定、今期中に採用したい',
               noteExample: '配属先、雇用区分、入社予定日、退職日、特記事項があれば記載する'
             },
 
@@ -310,6 +337,9 @@ app.get('/', (req, res) => {
               measureExample: '就業規則、手当、各種制度、運用ルールを改定または新設したい',
               reasonExample: '組織変更や業務実態に合わせて制度面を整備し、適正運用を図る必要がある',
               effectExample: '運用明確化、事務処理効率化、現場理解促進、制度整合性向上',
+              costExample: '手当増額分として年間120万円程度、制度導入費用なし',
+              paymentExample: '月額手当増額、年間増額見込み',
+              scheduleExample: '2026年10月施行予定、次年度から適用予定',
               noteExample: '施行日、対象部門、改定理由、現行制度との違いがあれば記載する'
             },
 
@@ -322,6 +352,9 @@ app.get('/', (req, res) => {
               measureExample: '協賛、広報施策、対外発信、スポンサー契約等を実施したい',
               reasonExample: '企業価値向上と地域・社会との関係強化のため、対外活動を進める必要がある',
               effectExample: '認知向上、企業価値向上、地域連携強化、採用広報への好影響',
+              costExample: '協賛費30万円、年間契約60万円',
+              paymentExample: '一括支払い、年額契約',
+              scheduleExample: 'イベント開催前までに契約締結、2026年9月開始予定',
               noteExample: '対象イベント、契約期間、金額、期待する波及効果があれば記載する'
             }
           };
@@ -337,6 +370,9 @@ app.get('/', (req, res) => {
               measure: '',
               reason: '',
               effect: '',
+              cost: '',
+              payment: '',
+              schedule: '',
               note: ''
             }
           };
@@ -349,6 +385,9 @@ app.get('/', (req, res) => {
             { key: 'measure' },
             { key: 'reason' },
             { key: 'effect' },
+            { key: 'cost' },
+            { key: 'payment' },
+            { key: 'schedule' },
             { key: 'note' }
           ];
 
@@ -370,6 +409,9 @@ app.get('/', (req, res) => {
             document.getElementById('measure_view').textContent = state.data.measure || '';
             document.getElementById('reason_view').textContent = state.data.reason || '';
             document.getElementById('effect_view').textContent = state.data.effect || '';
+            document.getElementById('cost_view').textContent = state.data.cost || '';
+            document.getElementById('payment_view').textContent = state.data.payment || '';
+            document.getElementById('schedule_view').textContent = state.data.schedule || '';
             document.getElementById('note_view').textContent = state.data.note || '';
           }
 
@@ -406,6 +448,18 @@ app.get('/', (req, res) => {
 
             if (stepKey === 'effect') {
               return '導入すると、どんな効果が期待できますか。\\n例：' + typeData.effectExample;
+            }
+
+            if (stepKey === 'cost') {
+              return '概算費用を教えてください。分かる範囲で大丈夫です。\\n例：' + typeData.costExample;
+            }
+
+            if (stepKey === 'payment') {
+              return '支払形態を教えてください。\\n例：' + typeData.paymentExample;
+            }
+
+            if (stepKey === 'schedule') {
+              return '導入時期・実施時期を教えてください。\\n例：' + typeData.scheduleExample;
             }
 
             if (stepKey === 'note') {
@@ -491,6 +545,9 @@ app.get('/', (req, res) => {
             else if (!state.data.measure) state.currentStep = 'measure';
             else if (!state.data.reason) state.currentStep = 'reason';
             else if (!state.data.effect) state.currentStep = 'effect';
+            else if (!state.data.cost) state.currentStep = 'cost';
+            else if (!state.data.payment) state.currentStep = 'payment';
+            else if (!state.data.schedule) state.currentStep = 'schedule';
             else if (!state.data.note) state.currentStep = 'note';
             else state.currentStep = 'done';
 
@@ -519,6 +576,9 @@ app.get('/', (req, res) => {
               measure: '',
               reason: '',
               effect: '',
+              cost: '',
+              payment: '',
+              schedule: '',
               note: ''
             };
 
@@ -561,7 +621,7 @@ app.get('/', (req, res) => {
 
 app.post('/generate', async (req, res) => {
   try {
-    const { ringiType, subject, issue, impact, measure, reason, effect, note } = req.body;
+    const { ringiType, subject, issue, impact, measure, reason, effect, cost, payment, schedule, note } = req.body;
 
     const typeLabel = {
       equipment: '設備導入・修繕',
@@ -586,6 +646,7 @@ ${typeLabel}
 【ルール】
 ・決裁者向けに簡潔かつ論理的に記述する
 ・説明は「現状→問題→対策→効果」の順で構成する
+・可能であれば費用、支払形態、導入時期も自然に盛り込む
 ・主観的表現は使わない
 ・冗長な表現は避ける
 ・そのまま社内文書に貼れる文体にする
@@ -599,6 +660,9 @@ ${typeLabel}
 対策: ${measure || ''}
 導入理由: ${reason || ''}
 期待効果: ${effect || ''}
+概算費用: ${cost || ''}
+支払形態: ${payment || ''}
+導入時期・実施時期: ${schedule || ''}
 補足: ${note || ''}
 `;
 
