@@ -73,18 +73,18 @@ app.post('/generate', async (req, res) => {
 以下の情報をもとに、社内稟議書の下書きを作成してください。
 「件名」「要旨」「説明」の3項目で、簡潔かつ論理的にまとめてください。
 
-件名メモ: ${subject}
-現状課題: ${issue}
-導入理由: ${reason}
-期待効果: ${effect}
-補足: ${note}
+件名メモ: ${subject || ''}
+現状課題: ${issue || ''}
+導入理由: ${reason || ''}
+期待効果: ${effect || ''}
+補足: ${note || ''}
 `;
 
     const response = await fetch('https://api.openai.com/v1/chat/completions', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': \`Bearer \${process.env.OPENAI_API_KEY}\`
+        'Authorization': `Bearer ${process.env.OPENAI_API_KEY}`
       },
       body: JSON.stringify({
         model: 'gpt-4o-mini',
@@ -107,13 +107,7 @@ app.post('/generate', async (req, res) => {
   }
 });
 
-const port = process.env.PORT || 10000;
-app.listen(port, () => {
-  console.log(\`Server running on port \${port}\`);
-});
-
-const PORT = process.env.PORT || 3000;
-
+const PORT = process.env.PORT || 10000;
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
 });
