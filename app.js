@@ -8,7 +8,7 @@ app.get('/', (req, res) => {
     <html>
       <head>
         <meta charset="utf-8" />
-        <title>稟議書AI（京瀧版）</title>
+        <title>稟議書AI（京瀧版・チェック機能付き）</title>
         <style>
           body {
             font-family: sans-serif;
@@ -44,7 +44,7 @@ app.get('/', (req, res) => {
             padding: 16px;
           }
           .chat {
-            height: 560px;
+            height: 520px;
             overflow-y: auto;
             border: 1px solid #ddd;
             border-radius: 8px;
@@ -96,13 +96,39 @@ app.get('/', (req, res) => {
           button.warn {
             background: #c0392b;
           }
+          button.green {
+            background: #2d7d46;
+          }
           button:disabled {
             opacity: 0.6;
             cursor: not-allowed;
           }
-          .side-title {
-            margin-top: 0;
-            font-size: 18px;
+          .type-buttons {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+            margin-top: 10px;
+          }
+          .type-buttons button {
+            background: #2d7d46;
+          }
+          .type-description {
+            margin-top: 10px;
+            padding: 12px;
+            background: #eef6ff;
+            border-radius: 8px;
+            display: none;
+            line-height: 1.7;
+            border: 1px solid #d7e7ff;
+          }
+          .result-box {
+            margin-top: 14px;
+            padding: 12px;
+            background: #f6f6f6;
+            border-radius: 8px;
+            white-space: pre-wrap;
+            min-height: 180px;
+            line-height: 1.7;
           }
           .field-box {
             border: 1px solid #ddd;
@@ -124,37 +150,10 @@ app.get('/', (req, res) => {
             min-height: 18px;
             line-height: 1.6;
           }
-          .result-box {
-            margin-top: 14px;
-            padding: 12px;
-            background: #f6f6f6;
-            border-radius: 8px;
-            white-space: pre-wrap;
-            min-height: 160px;
-            line-height: 1.7;
-          }
           .small {
             font-size: 12px;
             color: #666;
             line-height: 1.6;
-          }
-          .type-buttons {
-            display: flex;
-            gap: 8px;
-            flex-wrap: wrap;
-            margin-top: 10px;
-          }
-          .type-buttons button {
-            background: #2d7d46;
-          }
-          .type-description {
-            margin-top: 10px;
-            padding: 12px;
-            background: #eef6ff;
-            border-radius: 8px;
-            display: none;
-            line-height: 1.7;
-            border: 1px solid #d7e7ff;
           }
           @media (max-width: 900px) {
             .layout {
@@ -165,24 +164,25 @@ app.get('/', (req, res) => {
       </head>
       <body>
         <div class="wrap">
-          <h1>稟議書AI（京瀧版）</h1>
+          <h1>稟議書AI（京瀧版・チェック機能付き）</h1>
 
           <div class="notice">
             個人情報・機密情報は必要最小限で入力してください。<br>
             文章が苦手でも大丈夫です。短く答えていただければAIが整理します。<br>
-            最後に生成された文章は、そのまま使う前に必ず内容確認をしてください。
+            AIチェックで不足点を確認し、必要に応じて追記してから最終文を作成してください。
           </div>
 
           <div class="layout">
             <div class="card">
               <div id="chat" class="chat"></div>
 
-              <textarea id="input" placeholder="ここに入力してください。短くても大丈夫です。"></textarea>
+              <textarea id="input" placeholder="ここに入力してください。短くても大丈夫です。AIチェック後は、指摘に対する補足回答をここへ入力してください。"></textarea>
 
               <div class="btn-row">
                 <button id="sendBtn" onclick="sendMessage()">送信</button>
                 <button class="secondary" onclick="goBack()">1つ前に戻る</button>
                 <button class="warn" onclick="resetAll()">最初からやり直す</button>
+                <button class="green" onclick="reviewRingi()">AIチェック</button>
                 <button class="secondary" onclick="generateRingi()">稟議書を作成する</button>
               </div>
 
@@ -197,70 +197,27 @@ app.get('/', (req, res) => {
 
               <div id="typeDescription" class="type-description"></div>
 
-              <div class="result-box" id="resultBox">ここに生成結果が表示されます</div>
+              <div class="result-box" id="resultBox">ここにAIチェック結果や生成結果が表示されます</div>
             </div>
 
             <div class="card">
-              <h2 class="side-title">整理された情報</h2>
+              <h2 style="margin-top:0;">整理された情報</h2>
 
-              <div class="field-box">
-                <div class="field-label">稟議書の種類</div>
-                <div id="ringiType_view" class="field-value"></div>
-              </div>
-
-              <div class="field-box">
-                <div class="field-label">件名メモ</div>
-                <div id="subject_view" class="field-value"></div>
-              </div>
-
-              <div class="field-box">
-                <div class="field-label">現状課題</div>
-                <div id="issue_view" class="field-value"></div>
-              </div>
-
-              <div class="field-box">
-                <div class="field-label">影響</div>
-                <div id="impact_view" class="field-value"></div>
-              </div>
-
-              <div class="field-box">
-                <div class="field-label">対策</div>
-                <div id="measure_view" class="field-value"></div>
-              </div>
-
-              <div class="field-box">
-                <div class="field-label">導入理由</div>
-                <div id="reason_view" class="field-value"></div>
-              </div>
-
-              <div class="field-box">
-                <div class="field-label">期待効果</div>
-                <div id="effect_view" class="field-value"></div>
-              </div>
-
-              <div class="field-box">
-                <div class="field-label">概算費用</div>
-                <div id="cost_view" class="field-value"></div>
-              </div>
-
-              <div class="field-box">
-                <div class="field-label">支払形態</div>
-                <div id="payment_view" class="field-value"></div>
-              </div>
-
-              <div class="field-box">
-                <div class="field-label">導入時期・実施時期</div>
-                <div id="schedule_view" class="field-value"></div>
-              </div>
-
-              <div class="field-box">
-                <div class="field-label">補足</div>
-                <div id="note_view" class="field-value"></div>
-              </div>
+              <div class="field-box"><div class="field-label">稟議書の種類</div><div id="ringiType_view" class="field-value"></div></div>
+              <div class="field-box"><div class="field-label">件名メモ</div><div id="subject_view" class="field-value"></div></div>
+              <div class="field-box"><div class="field-label">現状課題</div><div id="issue_view" class="field-value"></div></div>
+              <div class="field-box"><div class="field-label">影響</div><div id="impact_view" class="field-value"></div></div>
+              <div class="field-box"><div class="field-label">対策</div><div id="measure_view" class="field-value"></div></div>
+              <div class="field-box"><div class="field-label">導入理由</div><div id="reason_view" class="field-value"></div></div>
+              <div class="field-box"><div class="field-label">期待効果</div><div id="effect_view" class="field-value"></div></div>
+              <div class="field-box"><div class="field-label">概算費用</div><div id="cost_view" class="field-value"></div></div>
+              <div class="field-box"><div class="field-label">支払形態</div><div id="payment_view" class="field-value"></div></div>
+              <div class="field-box"><div class="field-label">導入時期・実施時期</div><div id="schedule_view" class="field-value"></div></div>
+              <div class="field-box"><div class="field-label">補足</div><div id="note_view" class="field-value"></div></div>
 
               <div class="small">
-                「稟議書を作成する」は、情報が揃っていなくても押せます。<br>
-                足りない情報は空欄のままでもAIが整理します。
+                AIチェックで指摘が出た場合は、入力欄に補足を追記して再度AIチェックしてください。<br>
+                「稟議書を作成する」はAIチェックが通ってから押す運用をおすすめします。
               </div>
             </div>
           </div>
@@ -282,7 +239,6 @@ app.get('/', (req, res) => {
               scheduleExample: '2026年6月導入予定、次回定修時に実施予定',
               noteExample: '既存設備への後付けを想定し、現場運用への影響を最小限に抑える'
             },
-
             system: {
               label: 'システム・AI導入',
               description: 'RPA、SmartHR、AI、ネット環境、PCサポートなどIT・DX関連の稟議です。',
@@ -297,7 +253,6 @@ app.get('/', (req, res) => {
               scheduleExample: '2026年7月利用開始予定、早期導入希望',
               noteExample: '既存のkintoneや社内業務フローに合わせ、段階的に運用開始する'
             },
-
             contract: {
               label: '契約・外部サービス',
               description: '保険、警備、回線、コンサル、人材紹介など外部サービスの契約・更新・停止に関する稟議です。',
@@ -312,7 +267,6 @@ app.get('/', (req, res) => {
               scheduleExample: '次回契約更新月から適用、2026年8月開始予定',
               noteExample: '契約条件、見積金額、期間、他社比較結果があれば記載する'
             },
-
             hr: {
               label: '人事・採用・退職',
               description: '採用、社員登用、異動、昇格、退職など人事に関する稟議です。',
@@ -327,7 +281,6 @@ app.get('/', (req, res) => {
               scheduleExample: '2026年10月入社予定、今期中に採用したい',
               noteExample: '配属先、雇用区分、入社予定日、退職日、特記事項があれば記載する'
             },
-
             policy: {
               label: '規程・制度・手当改定',
               description: '就業規則、手当、制度変更など社内ルールに関する稟議です。',
@@ -342,7 +295,6 @@ app.get('/', (req, res) => {
               scheduleExample: '2026年10月施行予定、次年度から適用予定',
               noteExample: '施行日、対象部門、改定理由、現行制度との違いがあれば記載する'
             },
-
             pr: {
               label: '広報・協賛・対外活動',
               description: '協賛、スポンサー、寄付、広報活動など対外的な取り組みに関する稟議です。',
@@ -374,7 +326,8 @@ app.get('/', (req, res) => {
               payment: '',
               schedule: '',
               note: ''
-            }
+            },
+            lastReviewStatus: ''
           };
 
           const steps = [
@@ -422,58 +375,23 @@ app.get('/', (req, res) => {
           function getQuestion(stepKey) {
             const typeData = ringiTypes[state.data.ringiType] || ringiTypes.system;
 
-            if (stepKey === 'ringiType') {
-              return 'まず、どの種類の稟議書ですか。下のボタンから選んでください。';
-            }
-
-            if (stepKey === 'subject') {
-              return '件名の元になる内容を教えてください。\\n例：' + typeData.subjectExample;
-            }
-
-            if (stepKey === 'issue') {
-              return '今どんな問題がありますか。短くで大丈夫です。\\n例：' + typeData.issueExample;
-            }
-
-            if (stepKey === 'impact') {
-              return 'その結果、どんな手間やリスクが出ていますか。\\n例：' + typeData.impactExample;
-            }
-
-            if (stepKey === 'measure') {
-              return '今回、何を導入・改善したいですか。\\n例：' + typeData.measureExample;
-            }
-
-            if (stepKey === 'reason') {
-              return 'なぜそれが必要ですか。\\n例：' + typeData.reasonExample;
-            }
-
-            if (stepKey === 'effect') {
-              return '導入すると、どんな効果が期待できますか。\\n例：' + typeData.effectExample;
-            }
-
-            if (stepKey === 'cost') {
-              return '概算費用を教えてください。分かる範囲で大丈夫です。\\n例：' + typeData.costExample;
-            }
-
-            if (stepKey === 'payment') {
-              return '支払形態を教えてください。\\n例：' + typeData.paymentExample;
-            }
-
-            if (stepKey === 'schedule') {
-              return '導入時期・実施時期を教えてください。\\n例：' + typeData.scheduleExample;
-            }
-
-            if (stepKey === 'note') {
-              return '補足があれば教えてください。なければ「なし」で大丈夫です。\\n例：' + typeData.noteExample;
-            }
-
+            if (stepKey === 'ringiType') return 'まず、どの種類の稟議書ですか。下のボタンから選んでください。';
+            if (stepKey === 'subject') return '件名の元になる内容を教えてください。\\n例：' + typeData.subjectExample;
+            if (stepKey === 'issue') return '今どんな問題がありますか。短くで大丈夫です。\\n例：' + typeData.issueExample;
+            if (stepKey === 'impact') return 'その結果、どんな手間やリスクが出ていますか。\\n例：' + typeData.impactExample;
+            if (stepKey === 'measure') return '今回、何を導入・改善したいですか。\\n例：' + typeData.measureExample;
+            if (stepKey === 'reason') return 'なぜそれが必要ですか。\\n例：' + typeData.reasonExample;
+            if (stepKey === 'effect') return '導入すると、どんな効果が期待できますか。\\n例：' + typeData.effectExample;
+            if (stepKey === 'cost') return '概算費用を教えてください。分かる範囲で大丈夫です。\\n例：' + typeData.costExample;
+            if (stepKey === 'payment') return '支払形態を教えてください。\\n例：' + typeData.paymentExample;
+            if (stepKey === 'schedule') return '導入時期・実施時期を教えてください。\\n例：' + typeData.scheduleExample;
+            if (stepKey === 'note') return '補足があれば教えてください。なければ「なし」で大丈夫です。\\n例：' + typeData.noteExample;
             return '';
           }
 
           function askCurrentQuestion() {
             const question = getQuestion(state.currentStep);
-            if (question) {
-              addMessage('ai', question);
-            }
+            if (question) addMessage('ai', question);
 
             if (state.currentStep === 'ringiType') {
               document.getElementById('typeButtons').style.display = 'flex';
@@ -490,6 +408,7 @@ app.get('/', (req, res) => {
           function selectType(typeKey) {
             state.history.push(JSON.parse(JSON.stringify(state.data)));
             state.data.ringiType = typeKey;
+            state.lastReviewStatus = '';
             updateViews();
 
             const desc = document.getElementById('typeDescription');
@@ -502,21 +421,30 @@ app.get('/', (req, res) => {
             askCurrentQuestion();
           }
 
-          async function sendMessage() {
+          function sendMessage() {
             const inputEl = document.getElementById('input');
             const text = inputEl.value.trim();
             if (!text) return;
 
             addMessage('user', text);
 
+            if (state.currentStep === 'done') {
+              state.history.push(JSON.parse(JSON.stringify(state.data)));
+              state.data.note = (state.data.note ? state.data.note + '\\n' : '') + '追記: ' + text;
+              state.lastReviewStatus = '';
+              updateViews();
+              inputEl.value = '';
+              addMessage('ai', '追記内容を反映しました。必要に応じて、もう一度「AIチェック」を押してください。');
+              return;
+            }
+
             const currentIndex = getCurrentStepIndex();
             if (currentIndex === -1) return;
 
             const currentKey = steps[currentIndex].key;
-
             state.history.push(JSON.parse(JSON.stringify(state.data)));
             state.data[currentKey] = text === 'なし' ? '' : text;
-
+            state.lastReviewStatus = '';
             updateViews();
             inputEl.value = '';
 
@@ -526,7 +454,7 @@ app.get('/', (req, res) => {
               askCurrentQuestion();
             } else {
               state.currentStep = 'done';
-              addMessage('ai', 'ありがとうございます。内容が揃いました。必要なら右側の整理内容を確認して、問題なければ「稟議書を作成する」を押してください。');
+              addMessage('ai', 'ありがとうございます。内容が揃いました。まず「AIチェック」で不足点を確認し、必要に応じて補足してから「稟議書を作成する」を押してください。');
             }
           }
 
@@ -537,6 +465,7 @@ app.get('/', (req, res) => {
             }
 
             state.data = state.history.pop();
+            state.lastReviewStatus = '';
 
             if (!state.data.ringiType) state.currentStep = 'ringiType';
             else if (!state.data.subject) state.currentStep = 'subject';
@@ -562,12 +491,13 @@ app.get('/', (req, res) => {
             }
 
             addMessage('ai', '1つ前の状態に戻しました。必要に応じて入力し直してください。');
-            askCurrentQuestion();
+            if (state.currentStep !== 'done') askCurrentQuestion();
           }
 
           function resetAll() {
             state.currentStep = 'ringiType';
             state.history = [];
+            state.lastReviewStatus = '';
             state.data = {
               ringiType: '',
               subject: '',
@@ -584,15 +514,68 @@ app.get('/', (req, res) => {
 
             document.getElementById('chat').innerHTML = '';
             document.getElementById('input').value = '';
-            document.getElementById('resultBox').textContent = 'ここに生成結果が表示されます';
+            document.getElementById('resultBox').textContent = 'ここにAIチェック結果や生成結果が表示されます';
             document.getElementById('typeDescription').style.display = 'none';
             updateViews();
             addMessage('ai', '最初からやり直します。');
             askCurrentQuestion();
           }
 
+          async function reviewRingi() {
+            const resultBox = document.getElementById('resultBox');
+            resultBox.textContent = 'AIチェック中です...';
+
+            try {
+              const res = await fetch('/review', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(state.data)
+              });
+
+              const data = await res.json();
+              state.lastReviewStatus = data.status || '';
+
+              let text = '【AIチェック結果】\\n';
+              text += '判定: ' + (data.status === 'ready' ? '作成可能' : '要追記') + '\\n\\n';
+
+              if (data.summary) {
+                text += '概要: ' + data.summary + '\\n\\n';
+              }
+
+              if (Array.isArray(data.checks) && data.checks.length) {
+                text += '■確認結果\\n';
+                data.checks.forEach((item, idx) => {
+                  text += (idx + 1) + '. ' + item.title + ' [' + item.level + ']\\n';
+                  text += item.comment + '\\n\\n';
+                });
+              }
+
+              if (Array.isArray(data.questions) && data.questions.length) {
+                text += '■追加で考えるとよい点\\n';
+                data.questions.forEach((q, idx) => {
+                  text += (idx + 1) + '. ' + q + '\\n';
+                });
+                text += '\\n追記したい内容があれば、下の入力欄に書いて「送信」を押してください。';
+                addMessage('ai', 'AIチェックの結果、不足点や深掘りポイントを整理しました。必要に応じて補足を入力し、再度AIチェックしてください。');
+              } else {
+                addMessage('ai', 'AIチェックの結果、現時点で大きな不足は見当たりません。必要であればそのまま稟議書を作成してください。');
+              }
+
+              resultBox.textContent = text;
+            } catch (error) {
+              resultBox.textContent = 'AIチェック中にエラーが発生しました: ' + error.message;
+            }
+          }
+
           async function generateRingi() {
             const resultBox = document.getElementById('resultBox');
+
+            if (state.lastReviewStatus !== 'ready') {
+              resultBox.textContent = '先に「AIチェック」を実行し、指摘への対応後に判定が「作成可能」になってから生成してください。';
+              addMessage('ai', '先にAIチェックを行い、必要に応じて補足したうえで再度チェックしてください。');
+              return;
+            }
+
             resultBox.textContent = '生成中です...';
 
             try {
@@ -617,6 +600,120 @@ app.get('/', (req, res) => {
       </body>
     </html>
   `);
+});
+
+app.post('/review', async (req, res) => {
+  try {
+    const { ringiType, subject, issue, impact, measure, reason, effect, cost, payment, schedule, note } = req.body;
+
+    const typeLabel = {
+      equipment: '設備導入・修繕',
+      system: 'システム・AI導入',
+      contract: '契約・外部サービス',
+      hr: '人事・採用・退職',
+      policy: '規程・制度・手当改定',
+      pr: '広報・協賛・対外活動'
+    }[ringiType] || 'その他';
+
+    const prompt = `
+あなたは社内稟議書の事前査読者です。
+以下の情報をもとに、稟議書としての妥当性をチェックしてください。
+
+必ずJSONだけを返してください。
+形式は次の通りです。
+
+{
+  "status": "ready" または "revise",
+  "summary": "全体所見",
+  "checks": [
+    {
+      "title": "確認項目名",
+      "level": "ok / warning / critical",
+      "comment": "指摘内容"
+    }
+  ],
+  "questions": [
+    "追加で確認すべき質問1",
+    "追加で確認すべき質問2"
+  ]
+}
+
+チェック観点:
+- 費用対効果が弱くないか
+- リスク検討が不足していないか
+- 比較検討が不足していないか
+- 導入理由が浅くないか
+- 導入時期・実施時期が曖昧でないか
+- 費用情報が判断材料として不足していないか
+
+判定ルール:
+- 大きな不足がある場合は status を "revise"
+- 稟議書化に必要な水準を満たしていれば status を "ready"
+
+【稟議書の種類】
+${typeLabel}
+
+【入力情報】
+件名メモ: ${subject || ''}
+現状課題: ${issue || ''}
+影響: ${impact || ''}
+対策: ${measure || ''}
+導入理由: ${reason || ''}
+期待効果: ${effect || ''}
+概算費用: ${cost || ''}
+支払形態: ${payment || ''}
+導入時期・実施時期: ${schedule || ''}
+補足: ${note || ''}
+`;
+
+    const response = await fetch('https://api.openai.com/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${process.env.OPENAI_API_KEY}`
+      },
+      body: JSON.stringify({
+        model: 'gpt-4o-mini',
+        response_format: { type: 'json_object' },
+        messages: [
+          { role: 'user', content: prompt }
+        ]
+      })
+    });
+
+    const data = await response.json();
+
+    if (!response.ok) {
+      return res.status(response.status).json({
+        status: 'revise',
+        summary: 'AIチェックAPIでエラーが発生しました。',
+        checks: [],
+        questions: [JSON.stringify(data, null, 2)]
+      });
+    }
+
+    let parsed;
+    try {
+      parsed = JSON.parse(data.choices[0].message.content);
+    } catch (e) {
+      parsed = {
+        status: 'revise',
+        summary: 'AIチェック結果の解析に失敗しました。',
+        checks: [],
+        questions: ['AIの返答形式が不正でした。再度お試しください。']
+      };
+    }
+
+    res.json(parsed);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({
+      status: 'revise',
+      summary: 'AIチェック中にサーバエラーが発生しました。',
+      checks: [],
+      questions: [error.message]
+    });
+  }
 });
 
 app.post('/generate', async (req, res) => {
@@ -644,14 +741,14 @@ ${typeLabel}
 【説明】
 
 【ルール】
-・決裁者向けに簡潔かつ論理的に記述する
-・説明は「現状→問題→対策→効果」の順で構成する
-・可能であれば費用、支払形態、導入時期も自然に盛り込む
-・主観的表現は使わない
-・冗長な表現は避ける
-・そのまま社内文書に貼れる文体にする
-・文章は短めにまとめる
-・稟議書の種類に合った自然な表現にする
+- 決裁者向けに簡潔かつ論理的に記述する
+- 説明は「現状→問題→対策→効果」の順で構成する
+- 可能であれば費用、支払形態、導入時期も自然に盛り込む
+- 主観的表現は使わない
+- 冗長な表現は避ける
+- そのまま社内文書に貼れる文体にする
+- 文章は短めにまとめる
+- 稟議書の種類に合った自然な表現にする
 
 【入力情報】
 件名メモ: ${subject || ''}
