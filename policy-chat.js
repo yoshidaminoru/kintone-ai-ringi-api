@@ -118,7 +118,7 @@ function searchPolicy(question, documents) {
 
 function mountPolicyChat(app) {
   const password = process.env.POLICY_PILOT_PASSWORD;
-  const token = process.env.KINTONE_POLICY_API_TOKEN;
+  const token = process.env.KINTONE_POLICY_API_TOKEN?.trim();
   let profiles = [];
   try {
     profiles = loadProfiles(process.env.POLICY_PROFILES_JSON);
@@ -156,7 +156,13 @@ function mountPolicyChat(app) {
       redirect: 'error',
       signal: AbortSignal.timeout(20_000)
     });
-    if (!response.ok) throw new Error(`kintone API HTTP ${response.status}`);
+    if (!response.ok) {
+      const { code, errors } = await response.json().catch(() => ({}));
+      const safeCode = typeof code === 'string' && /^[A-Z0-9_]{1,45}$/.test(code) ? ` ${code}` : '';
+      const invalidFields = Object.keys(errors || {}).filter(key => /^[a-zA-Z0-9_.[\]-]{1,50}$/.test(key));
+      const safeFields = invalidFields.length ? ` (${invalidFields.join(', ')})` : '';
+      throw new Error(`kintone ${endpoint} HTTP ${response.status}${safeCode}${safeFields}`);
+    }
     return response;
   }
 
