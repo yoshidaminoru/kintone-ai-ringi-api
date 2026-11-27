@@ -1,0 +1,134 @@
+<!doctype html>
+<html lang="ja">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>就業規則・休暇申請 | 京瀧</title>
+<style>
+  :root { color-scheme: light; font-family: "Yu Gothic UI", Meiryo, system-ui, sans-serif; color: #202d29; background: #f1f5f2 }
+  * { box-sizing: border-box }
+  body { margin: 0 }
+  header { border-bottom: 1px solid #d7e5dd; background: #fff }
+  .header { max-width: 850px; margin: auto; padding: 17px 24px; font-weight: 750; color: #21513e }
+  main { max-width: 850px; margin: 42px auto; padding: 0 24px 40px }
+  h1 { font-size: clamp(1.55rem, 4vw, 2.35rem); margin: 0 0 9px; line-height: 1.35 }
+  .intro, .hint { color: #445950 }
+  .intro { margin: 0 0 25px }
+  form, article { background: white; border: 1px solid #d7e5dd; border-radius: 15px; padding: clamp(16px, 4vw, 28px) }
+  label { display: block; font-weight: 700; margin: 0 0 7px }
+  select, textarea { display: block; width: 100%; font: inherit; border: 1px solid #819c8f; border-radius: 8px; background: #fff; color: inherit; padding: 9px 12px }
+  select { margin-bottom: 18px }
+  textarea { min-height: 96px; resize: vertical }
+  button { font: inherit; cursor: pointer; border: 1px solid #37745d; border-radius: 8px; padding: 8px 12px; background: #fff; color: #21513e }
+  button[type=submit] { background: #21513e; color: #fff; padding: 10px 24px; font-weight: 700 }
+  button:disabled { cursor: default; opacity: .6 }
+  button:focus-visible, select:focus-visible, textarea:focus-visible, a:focus-visible { outline: 3px solid #3169ae; outline-offset: 2px }
+  .examples { display: flex; gap: 7px; flex-wrap: wrap; margin: 12px 0 }
+  .hint { font-size: .88rem; margin: 12px 0 0 }
+  #status { min-height: 1.5em; margin: 12px 0 }
+  article + article { margin-top: 12px }
+  h2 { margin: 0 0 10px; font-size: 1.15rem }
+  article p { white-space: pre-wrap; overflow-wrap: anywhere; line-height: 1.7 }
+  ul { margin-bottom: 0; padding-inline-start: 23px }
+  a { color: #195941; text-underline-offset: 3px }
+</style>
+<header><div class="header">京瀧　社内規程</div></header>
+<main>
+  <h1>就業規則・休暇申請チャット</h1>
+  <p class="intro">就業規則を調べたり、休暇申請の手順を確認したりできます。</p>
+  <form id="chat">
+    <label for="profile">所属・雇用区分</label>
+    <select id="profile" required><option value="">対象を選択してください</option></select>
+    <label for="question">質問</label>
+    <textarea id="question" maxlength="500" required placeholder="例　半日休暇を申請するには何をすればよいですか？"></textarea>
+    <div class="examples" aria-label="質問例">
+      <button type="button">半休はどう申請しますか？</button>
+      <button type="button">慶弔休暇の申請に必要な書類は？</button>
+    </div>
+    <button id="send" type="submit" disabled>質問する</button>
+    <p class="hint">社員名や個人の事情など、個人情報の入力は控えてください。</p>
+  </form>
+  <p id="status" role="status"></p>
+  <section id="answers" aria-label="質問と回答"></section>
+</main>
+<script>
+  const form = document.getElementById('chat');
+  const profile = document.getElementById('profile');
+  const question = document.getElementById('question');
+  const send = document.getElementById('send');
+  const statusText = document.getElementById('status');
+  const answers = document.getElementById('answers');
+  const node = (tag, text) => Object.assign(document.createElement(tag), { textContent: text });
+
+  for (const button of form.querySelectorAll('button[type=button]')) {
+    button.addEventListener('click', () => {
+      question.value = button.textContent.trim();
+      question.focus();
+    });
+  }
+
+  (async () => {
+    try {
+      const response = await fetch('/policy-chat/options');
+      if (!response.ok) throw new Error();
+      (await response.json()).forEach((label, index) => profile.add(new Option(label, index)));
+      send.disabled = false;
+    } catch {
+      statusText.textContent = '対象区分を読み込めませんでした。画面を更新してください。';
+    }
+  })();
+
+  form.addEventListener('submit', async event => {
+    event.preventDefault();
+    if (send.disabled || !question.value.trim()) return;
+    const asked = question.value.trim();
+    const profileIndex = Number(profile.value);
+    const label = profile.selectedOptions[0].text;
+    send.disabled = true;
+    statusText.textContent = '規程を確認しています。';
+    try {
+      let response;
+      for (let attempt = 0; attempt <= 20; attempt++) {
+        response = await fetch('/policy-chat/ask', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'X-Policy-Chat': '1' },
+          body: JSON.stringify({ question: asked, profileIndex })
+        });
+        if (response.status !== 202) break;
+        statusText.textContent = '規程PDFを読み取っています。初回は数分かかることがあります。';
+        await new Promise(resolve => setTimeout(resolve, 8000));
+      }
+      if (response.status === 202) throw new Error('規程を読み取り中です。時間をおいてもう一度お試しください。');
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error);
+      const article = document.createElement('article');
+      article.append(node('h2', asked), node('small', label), node('p', data.answer));
+      if (data.sources.length) {
+        const list = document.createElement('ul');
+        for (const source of data.sources) {
+          const item = document.createElement('li');
+          const date = source.date ? '、' + source.date : '';
+          const link = node('a', source.fileName + '（PDF ' + source.page + 'ページ' + date + '）');
+          link.href = source.url;
+          item.append(link);
+          list.append(item);
+        }
+        article.append(node('strong', '参照した原文'), list);
+      }
+      if (data.applicationUrl) {
+        const link = node('a', '休暇の申請画面を開く');
+        link.href = data.applicationUrl;
+        const line = document.createElement('p');
+        line.append(link);
+        article.append(line);
+      }
+      answers.prepend(article);
+      if (question.value.trim() === asked) question.value = '';
+      statusText.textContent = '回答を表示しました。';
+    } catch (error) {
+      statusText.textContent = error.message || '回答を取得できませんでした。';
+    } finally {
+      send.disabled = false;
+    }
+  });
+</script>
+</html>
