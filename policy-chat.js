@@ -3,8 +3,8 @@ const path = require('node:path');
 const { createCanvas } = require('@napi-rs/canvas');
 const { createWorker, OEM } = require('tesseract.js');
 const { requestPolicyModel } = require('./policy-model');
+const { mountKintoneLogin, origin, route: kintoneRoute } = require('./policy-kintone-login');
 
-const origin = 'https://kyotaki.cybozu.com';
 const appId = '573';
 const labels = { title: '規程名称', pdf: '添付規程', date: '制定／改定日', edition: '新／旧' };
 const noAnswer = 'この質問に答えられる根拠を確認できませんでした。所属・雇用区分を確認するか、総務部にお問い合わせください。';
@@ -116,7 +116,8 @@ function searchPolicy(question, documents) {
     .sort((a, b) => b.score - a.score).slice(0, 8);
 }
 
-function mountPolicyChat(app) {
+function mountPolicyChat(app, { kintoneLogin = false } = {}) {
+  const route = kintoneLogin ? kintoneRoute : '/policy-chat';
   const password = process.env.POLICY_PILOT_PASSWORD;
   const token = process.env.KINTONE_POLICY_API_TOKEN?.trim();
   let profiles = [];
@@ -134,8 +135,13 @@ function mountPolicyChat(app) {
   const digest = value => createHash('sha256').update(value).digest();
   const expected = digest(`pilot:${password || ''}`);
 
-  app.use('/policy-chat', (req, res, next) => {
+  const forgetSession = kintoneLogin && mountKintoneLogin(app, profiles.length && process.env.OPENAI_API_KEY);
+  if (!kintoneLogin) app.use(route, (req, res, next) => {
     res.set('Cache-Control', 'no-store');
+    if (process.env.POLICY_DISABLE_SHARED_LOGIN === 'true') {
+      if (req.method === 'GET' && req.path === '/') return res.redirect(302, kintoneRoute);
+      return res.sendStatus(404);
+    }
     if (!password || password.length < 16 || !token || !profiles.length || !process.env.OPENAI_API_KEY) {
       return res.status(503).send('規程チャットの試作は準備中です。');
     }
@@ -147,12 +153,12 @@ function mountPolicyChat(app) {
     next();
   });
 
-  app.get('/policy-chat', (_req, res) => res.sendFile(path.join(__dirname, 'policy-chat.html')));
-  app.get('/policy-chat/options', (_req, res) => res.json(profiles.map(({ label }) => label)));
+  app.get(route, (_req, res) => res.sendFile(path.join(__dirname, 'policy-chat.html')));
+  app.get(route + '/options', (_req, res) => res.json(profiles.map(({ label }) => label)));
 
-  async function kintone(endpoint, query) {
+  async function kintone(endpoint, query, session) {
     const response = await fetch(`${origin}/k/v1/${endpoint}?${new URLSearchParams(query)}`, {
-      headers: { 'X-Cybozu-API-Token': token },
+      headers: session ? { Authorization: `Bearer ${session.token}` } : { 'X-Cybozu-API-Token': token },
       redirect: 'error',
       signal: AbortSignal.timeout(20_000)
     });
@@ -161,13 +167,15 @@ function mountPolicyChat(app) {
       const safeCode = typeof code === 'string' && /^[A-Z0-9_]{1,45}$/.test(code) ? ` ${code}` : '';
       const invalidFields = Object.keys(errors || {}).filter(key => /^[a-zA-Z0-9_.[\]-]{1,50}$/.test(key));
       const safeFields = invalidFields.length ? ` (${invalidFields.join(', ')})` : '';
-      throw new Error(`kintone ${endpoint} HTTP ${response.status}${safeCode}${safeFields}`);
+      const error = new Error(`kintone ${endpoint} HTTP ${response.status}${safeCode}${safeFields}`);
+      error.kintoneStatus = response.status;
+      throw error;
     }
     return response;
   }
 
-  async function discoverFields() {
-    const response = await kintone('app/form/fields.json', { app: appId, lang: 'ja' });
+  async function discoverFields(session) {
+    const response = await kintone('app/form/fields.json', { app: appId, lang: 'ja' }, session);
     const { properties } = await response.json();
     return Object.fromEntries(Object.entries(labels).map(([role, label]) => {
       const matches = Object.values(properties).filter(field => field.label === label);
@@ -176,30 +184,32 @@ function mountPolicyChat(app) {
     }));
   }
 
-  async function getDocuments(profile) {
-    fieldCodes ||= discoverFields().catch(error => {
+  async function getDocuments(profile, session) {
+    fieldCodes ||= discoverFields(session).catch(error => {
       fieldCodes = undefined;
       throw error;
     });
     const fields = await fieldCodes;
     const query = { app: appId, query: `$id in (${profile.records.join(',')})` };
     for (const [index, code] of ['$id', ...Object.values(fields)].entries()) query[`fields[${index}]`] = code;
-    const response = await kintone('records.json', query);
+    // Fetch the records anew with the current user's token even when OCR results are cached.
+    const response = await kintone('records.json', query, session);
     const { records } = await response.json();
     const result = [];
     for (const record of records) {
       const id = Number(record.$id.value);
       if (!profile.records.includes(id)) throw new Error('試作対象外のレコードが返されました。');
       const editions = [].concat(record[fields.edition]?.value ?? []);
-      if (!editions.includes('新') || editions.includes('旧')) continue;
+      const title = record[fields.title]?.value;
+      if (!title || !editions.includes('新') || editions.includes('旧')) continue;
       const files = (record[fields.pdf]?.value || []).filter(file => /\.pdf$/i.test(file.name));
       for (const file of files) {
-        const key = `${id}:${file.fileKey}`;
+        const key = `${session?.id || 'shared'}:${id}:${file.fileKey}`;
         if (!documents.has(key)) {
           if (documents.size >= 40) documents.delete(documents.keys().next().value);
           const nextDocument = documentQueue.then(async () => {
             if (Number(file.size) > 30 * 1024 * 1024) throw new Error('規程PDFが上限の30 MBを超えました。');
-            const attachment = await kintone('file.json', { fileKey: file.fileKey });
+            const attachment = await kintone('file.json', { fileKey: file.fileKey }, session);
             return readPolicyPages(await attachment.arrayBuffer());
           }).catch(error => {
             documents.delete(key);
@@ -209,7 +219,7 @@ function mountPolicyChat(app) {
           documentQueue = nextDocument.catch(() => {});
         }
         result.push({
-          id, title: record[fields.title].value, date: record[fields.date]?.value,
+          id, title, date: record[fields.date]?.value,
           fileName: file.name, pages: await documents.get(key)
         });
       }
@@ -217,7 +227,7 @@ function mountPolicyChat(app) {
     return result;
   }
 
-  app.post('/policy-chat/ask', async (req, res) => {
+  app.post(route + '/ask', async (req, res) => {
     // Form submissions from other sites cannot send this header without CORS permission.
     if (req.get('X-Policy-Chat') !== '1' || !req.is('application/json')) return res.sendStatus(403);
     const { question, profileIndex } = req.body || {};
@@ -236,7 +246,7 @@ function mountPolicyChat(app) {
     active++;
     try {
       const docs = await Promise.race([
-        getDocuments(profile),
+        getDocuments(profile, req.policySession),
         new Promise(resolve => {
           const timeout = setTimeout(() => resolve(null), 8_000);
           res.once('finish', () => clearTimeout(timeout));
@@ -278,6 +288,13 @@ function mountPolicyChat(app) {
       }
       return res.json({ answer: answer.answer, sources: [...citations.values()], applicationUrl });
     } catch (error) {
+      if (kintoneLogin && error.kintoneStatus === 401) {
+        forgetSession(req);
+        return res.status(401).json({ error: 'kintoneで再認証するため、画面を開き直してください。' });
+      }
+      if (kintoneLogin && [403, 404].includes(error.kintoneStatus)) {
+        return res.status(403).json({ error: '閲覧できる規程を確認できませんでした。kintoneの閲覧権限をご確認ください。' });
+      }
       console.error('規程チャットの取得・生成に失敗:', error.message.split('\n')[0]);
       return res.status(502).json({ error: '規程を取得できませんでした。時間をおいて再度お試しください。' });
     } finally {

@@ -2,7 +2,9 @@ const express = require('express');
 const app = express();
 
 app.use(express.json());
-require('./policy-chat').mountPolicyChat(app);
+const { mountPolicyChat } = require('./policy-chat');
+mountPolicyChat(app);
+mountPolicyChat(app, { kintoneLogin: true });
 
 app.get('/', (req, res) => {
   res.send(`

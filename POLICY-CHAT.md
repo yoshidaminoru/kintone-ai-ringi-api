@@ -44,3 +44,11 @@ yarn start
 - 同じ添付ファイルは起動中に再利用します。規程の新版や添付差し替えは次の質問から反映します。
 - 画像だけのスキャンPDFはサーバー側で日本語の文字認識を実行します。初回やPDF差し替え直後は処理に数分かかることがあります。正式な判断に使う場合は、回答に付いた原文を確認してください。
 - 申請画面のURLを設定すると、休暇に関する質問からその画面へ移動できます。画面の操作手順を回答させる場合は、現行の手順書も参照対象に含めます。
+
+## kintoneログインでの試用
+
+cybozu.com共通管理の［OAuth］でクライアントを追加し、利用者を試用参加者に限定します。リダイレクトエンドポイントは `https://kintone-ai-ringi-api.onrender.com/policy-chat-kintone/callback` です。
+
+Renderで `POLICY_KINTONE_CLIENT_ID` と `POLICY_KINTONE_CLIENT_SECRET` を設定します。新しい入口は `/policy-chat-kintone` です。規程集のレコードと添付は利用者本人の読み取り権限で取得します。
+
+実機確認後は `POLICY_DISABLE_SHARED_LOGIN` を `true` に設定すると、従来の入口はkintoneログイン版に移動します。利用対象とkintone上の閲覧権限が反映されることを確認したあとで切り替えてください。
