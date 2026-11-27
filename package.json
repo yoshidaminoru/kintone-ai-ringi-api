@@ -13,7 +13,8 @@
   "scripts": {
     "start": "node app.js",
     "check:policy-model": "node policy-model.js",
-    "check:policy-record": "node check-policy-record.js"
+    "check:policy-record": "node check-policy-record.js",
+    "prepare:policy-index": "node policy-prepare-index.js"
   },
   "dependencies": {
     "@napi-rs/canvas": "^1.0.13",

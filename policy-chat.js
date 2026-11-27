@@ -1,4 +1,5 @@
 const { createHash, timingSafeEqual } = require('node:crypto');
+const fs = require('node:fs/promises');
 const path = require('node:path');
 const { createCanvas } = require('@napi-rs/canvas');
 const { createWorker, OEM } = require('tesseract.js');
@@ -6,6 +7,7 @@ const { requestPolicyModel } = require('./policy-model');
 const { mountKintoneLogin, origin, route: kintoneRoute } = require('./policy-kintone-login');
 
 const appId = '573';
+const indexPath = path.join(__dirname, '.policy-index.json');
 const labels = { title: '規程名称', pdf: '添付規程', date: '制定／改定日', edition: '新／旧' };
 const noAnswer = 'この質問に答えられる根拠を確認できませんでした。所属・雇用区分を確認するか、総務部にお問い合わせください。';
 const answerFormat = {
@@ -116,7 +118,7 @@ function searchPolicy(question, documents) {
     .sort((a, b) => b.score - a.score).slice(0, 8);
 }
 
-function mountPolicyChat(app, { kintoneLogin = false } = {}) {
+function mountPolicyChat(app, { kintoneLogin = false, buildingIndex = false } = {}) {
   const route = kintoneLogin ? kintoneRoute : '/policy-chat';
   const password = process.env.POLICY_PILOT_PASSWORD;
   const token = process.env.KINTONE_POLICY_API_TOKEN?.trim();
@@ -127,6 +129,9 @@ function mountPolicyChat(app, { kintoneLogin = false } = {}) {
     console.error('規程チャットの対象設定を確認してください。');
   }
   const documents = new Map();
+  const index = buildingIndex ? Promise.resolve({}) : fs.readFile(indexPath, 'utf8')
+    .then(JSON.parse)
+    .catch(() => ({}));
   let fieldCodes;
   let documentQueue = Promise.resolve();
   let windowStart = 0;
@@ -204,12 +209,19 @@ function mountPolicyChat(app, { kintoneLogin = false } = {}) {
       if (!title || !editions.includes('新') || editions.includes('旧')) continue;
       const files = (record[fields.pdf]?.value || []).filter(file => /\.pdf$/i.test(file.name));
       for (const file of files) {
-        const key = `${session?.id || 'shared'}:${id}:${file.fileKey}`;
+        const attachmentKey = `${id}:${file.fileKey}`;
+        const key = `${session?.id || 'shared'}:${attachmentKey}`;
         if (!documents.has(key)) {
           if (documents.size >= 40) documents.delete(documents.keys().next().value);
           const nextDocument = documentQueue.then(async () => {
+            const prepared = (await index)[attachmentKey];
+            if (Array.isArray(prepared) && !session) return prepared;
             if (Number(file.size) > 30 * 1024 * 1024) throw new Error('規程PDFが上限の30 MBを超えました。');
             const attachment = await kintone('file.json', { fileKey: file.fileKey }, session);
+            if (Array.isArray(prepared)) {
+              await attachment.body?.cancel();
+              return prepared;
+            }
             return readPolicyPages(await attachment.arrayBuffer());
           }).catch(error => {
             documents.delete(key);
@@ -219,7 +231,7 @@ function mountPolicyChat(app, { kintoneLogin = false } = {}) {
           documentQueue = nextDocument.catch(() => {});
         }
         result.push({
-          id, title, date: record[fields.date]?.value,
+          id, title, attachmentKey, date: record[fields.date]?.value,
           fileName: file.name, pages: await documents.get(key)
         });
       }
@@ -301,6 +313,19 @@ function mountPolicyChat(app, { kintoneLogin = false } = {}) {
       active--;
     }
   });
+
+  if (!buildingIndex) return;
+  return async () => {
+    if (!token || !profiles.length) return 0;
+    const entries = new Map();
+    for (const profile of profiles) {
+      for (const document of await getDocuments(profile)) {
+        entries.set(document.attachmentKey, document.pages);
+      }
+    }
+    await fs.writeFile(indexPath, JSON.stringify(Object.fromEntries(entries)), { mode: 0o600 });
+    return entries.size;
+  };
 }
 
 module.exports = { mountPolicyChat };
