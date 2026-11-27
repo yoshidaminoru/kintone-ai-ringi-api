@@ -36,8 +36,10 @@
   <h1>就業規則・休暇申請チャット</h1>
   <p class="intro">就業規則を調べたり、休暇申請の手順を確認したりできます。</p>
   <form id="chat">
-    <label for="profile">所属・雇用区分</label>
-    <select id="profile" required><option value="">対象を選択してください</option></select>
+    <div id="profile-choice" hidden>
+      <label for="profile">参照する規程</label>
+      <select id="profile" required disabled><option value="">規程を選択してください</option></select>
+    </div>
     <label for="question">質問</label>
     <textarea id="question" maxlength="500" required placeholder="例　半日休暇を申請するには何をすればよいですか？"></textarea>
     <div class="examples" aria-label="質問例">
@@ -53,6 +55,7 @@
 <script>
   const form = document.getElementById('chat');
   const profile = document.getElementById('profile');
+  const profileChoice = document.getElementById('profile-choice');
   const question = document.getElementById('question');
   const send = document.getElementById('send');
   const statusText = document.getElementById('status');
@@ -71,7 +74,15 @@
     try {
       const response = await fetch(route + '/options');
       if (!response.ok) throw new Error();
-      (await response.json()).forEach((label, index) => profile.add(new Option(label, index)));
+      const profiles = await response.json();
+      if (!Array.isArray(profiles) || !profiles.length) throw new Error();
+      profiles.forEach((label, index) => profile.add(new Option(label, index)));
+      if (profiles.length === 1) {
+        profile.value = '0';
+      } else {
+        profileChoice.hidden = false;
+        profile.disabled = false;
+      }
       send.disabled = false;
     } catch {
       statusText.textContent = '対象区分を読み込めませんでした。画面を更新してください。';
@@ -87,20 +98,32 @@
     send.disabled = true;
     statusText.textContent = '規程を確認しています。';
     try {
-      let response;
+      let data;
+      let retries = 0;
       for (let attempt = 0; attempt <= 20; attempt++) {
-        response = await fetch(route + '/ask', {
+        const response = await fetch(route + '/ask', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', 'X-Policy-Chat': '1' },
           body: JSON.stringify({ question: asked, profileIndex })
-        });
-        if (response.status !== 202) break;
-        statusText.textContent = '規程PDFを読み取っています。初回は数分かかることがあります。';
+        }).catch(() => null);
+        const result = await response?.json().catch(() => null);
+        if (response?.status === 202 && result?.pending) {
+          statusText.textContent = '規程PDFを読み取っています。初回は数分かかることがあります。';
+        } else if (response?.ok && typeof result?.answer === 'string' && Array.isArray(result.sources)) {
+          data = result;
+          break;
+        } else if (typeof result?.error === 'string') {
+          throw new Error(result.error);
+        } else if (response?.status === 401) {
+          throw new Error('利用者の認証を確認できません。画面を開き直してください。');
+        } else if (++retries <= 4 && (!response || response.ok || [502, 503, 504].includes(response.status))) {
+          statusText.textContent = '接続が一時的に途切れました。再接続しています。';
+        } else {
+          throw new Error('回答を取得できませんでした。少し時間をおいて、もう一度お試しください。');
+        }
         await new Promise(resolve => setTimeout(resolve, 8000));
       }
-      if (response.status === 202) throw new Error('規程を読み取り中です。時間をおいてもう一度お試しください。');
-      const data = await response.json();
-      if (!response.ok) throw new Error(data.error);
+      if (!data) throw new Error('規程を読み取り中です。時間をおいてもう一度お試しください。');
       const article = document.createElement('article');
       article.append(node('h2', asked), node('small', label), node('p', data.answer));
       if (data.sources.length) {

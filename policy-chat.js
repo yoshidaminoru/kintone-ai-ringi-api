@@ -96,8 +96,8 @@ async function readPolicyPages(bytes) {
 
 function searchPolicy(question, documents) {
   const searchText = question.normalize('NFKC')
-    .replace(/年次有給休暇|有給休暇|有休|有給/g, '年次有給休暇')
-    .replace(/半休/g, '半日休暇')
+    .replace(/半日(?:の)?(?:年休|有休|有給休暇)|半休/g, '半日休暇')
+    .replace(/年次有給休暇|有給休暇|有休|有給|年休/g, '年次有給休暇')
     .replace(/看護休暇/g, '子の看護等休暇')
     .replace(/申請方法|申請手順/g, '申請 届出 申出 手続 提出');
   const terms = new Set(searchText.match(/[\p{L}\p{N}]{2,}/gu)?.flatMap(word =>
